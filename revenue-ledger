@@ -3,19 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>Revenue Ledger</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-    }
-    a {
-      color: #007bff;
-      text-decoration: none;
-    }
-    a:hover {
-      text-decoration: underline;
-    }
-  </style>
 </head>
 <body>
   <h1>Revenue Ledger</h1>
@@ -23,25 +10,7 @@
   <a href="index.html">← Back to Home</a>
 </body>
 </html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Revenue Ledger</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    table, th, td {
-      border: 1px solid #aaa;
-      border-collapse: collapse;
-      padding: 6px;
-    }
-    table { width: 100%; margin-top: 20px; }
-    th { background-color: #f0f0f0; }
-    .subtotal { font-weight: bold; background: #eef; }
-    h1, h2 { margin-bottom: 10px; }
-  </style>
-</head>
-<body>
+
 
   <h1>Revenue Ledger</h1>
 
