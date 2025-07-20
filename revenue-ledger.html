@@ -1,23 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Revenue Ledger</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 30px; }
-    nav a {
-      margin-right: 20px;
-      text-decoration: none;
-      color: #0366d6;
-    }
-    h1 { color: #222; }
     table, th, td {
       border: 1px solid #aaa;
       border-collapse: collapse;
       padding: 6px;
     }
-    table { width: 100%; margin-top: 20px; }
+    table { width: 100%; margin-top: 10px; }
     th { background-color: #f0f0f0; }
+    nav a {
+      text-decoration: none;
+      color: #0366d6;
+      margin-right: 20px;
+    }
   </style>
 </head>
 <body>
@@ -26,9 +25,9 @@
     <a href="index.html">🏠 Home</a>
   </nav>
 
-  <p>This page lists all journal entries involving revenue accounts.</p>
+  <p>This table shows all journal entries involving revenue accounts (debit or credit).</p>
 
-  <table id="revenueTable">
+  <table id="revenueJournal">
     <thead>
       <tr>
         <th>Date</th>
@@ -41,49 +40,52 @@
     <tbody></tbody>
   </table>
 
-  <script>
-    const revenueTableBody = document.querySelector('#revenueTable tbody');
+<script>
+(() => {
+  // Load data from localStorage
+  const accounts = JSON.parse(localStorage.getItem("ledger_accounts")) || [];
+  const journalEntries = JSON.parse(localStorage.getItem("ledger_journal")) || [];
 
-    function loadRevenueEntries() {
-      const entries = JSON.parse(localStorage.getItem('journalEntries') || '[]');
-      const accounts = JSON.parse(localStorage.getItem('accounts') || '[]');
-      const revenueAccounts = accounts
-        .filter(acc => acc.type === 'Revenue')
-        .map(acc => acc.name);
+  // Get list of revenue account names
+  const revenueAccounts = accounts
+    .filter(acc => acc.type === "Revenue")
+    .map(acc => acc.name);
 
-      const revenueEntries = entries.filter(entry =>
-        revenueAccounts.includes(entry.debitAccount) || revenueAccounts.includes(entry.creditAccount)
-      );
+  // Filter journal entries to only those involving revenue accounts in debit or credit
+  const revenueEntries = journalEntries.filter(entry =>
+    revenueAccounts.includes(entry.debit.account) || revenueAccounts.includes(entry.credit.account)
+  );
 
-      revenueEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
+  // Reference tbody element
+  const tbody = document.querySelector("#revenueJournal tbody");
 
-      revenueEntries.forEach(entry => {
-        if (revenueAccounts.includes(entry.debitAccount)) {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${entry.date}</td>
-            <td>${entry.description}</td>
-            <td>${entry.debitAccount}</td>
-            <td>${parseFloat(entry.debitAmount).toFixed(2)}</td>
-            <td></td>
-          `;
-          revenueTableBody.appendChild(row);
-        }
-        if (revenueAccounts.includes(entry.creditAccount)) {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${entry.date}</td>
-            <td>${entry.description}</td>
-            <td>${entry.creditAccount}</td>
-            <td></td>
-            <td>${parseFloat(entry.creditAmount).toFixed(2)}</td>
-          `;
-          revenueTableBody.appendChild(row);
-        }
-      });
-    }
+  // Render rows for each revenue journal entry
+  revenueEntries.forEach(entry => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${entry.date}</td>
+        <td>${entry.description}</td>
+        <td>${entry.debit.account}</td>
+        <td>${entry.debit.amount.toFixed(2)}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>${entry.date}</td>
+        <td>${entry.description}</td>
+        <td>${entry.credit.account}</td>
+        <td></td>
+        <td>${entry.credit.amount.toFixed(2)}</td>
+      </tr>
+    `;
+  });
 
-    loadRevenueEntries();
-  </script>
+  // If no revenue entries found
+  if (revenueEntries.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No revenue journal entries found.</td></tr>`;
+  }
+})();
+</script>
+
 </body>
 </html>
+
