@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cash Reconciliation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    table, th, td {
+      border: 1px solid #aaa;
+      border-collapse: collapse;
+      padding: 6px;
+    }
+    table { width: 100%; margin-top: 10px; }
+    th { background-color: #f0f0f0; }
+    input, select { padding: 5px; }
+    .match { color: green; font-weight: bold; }
+    .mismatch { color: red; font-weight: bold; }
+    #controls button { margin-right: 10px; }
+  </style>
+</head>
+<body>
+
+  <h1>Cash Reconciliation</h1>
+
+  <label for="dateInput">Reconciliation Date:</label>
+  <input type="date" id="dateInput" />
+  <button onclick="loadByDate()">Load</button>
+
+  <br><br>
+
+  <label for="archiveSelect">Select Archived Reconciliation:</label>
+  <select id="archiveSelect"></select>
+  <button onclick="loadArchived()">Load Archived</button>
+
+  <br><br>
+  <label>Bank Statement Ending Balance: $</label>
+  <input type="number" id="bankBalance" step="0.01"><br><br>
+
+  <h2>Reconciling Items</h2>
+  <table id="reconTable">
+    <thead>
+      <tr><th>Date</th><th>Description</th><th>Amount</th><th>Type</th><th>Remove</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button id="addItemBtn">Add Item</button>
+
+  <h2>Summary</h2>
+  <p>Bank Balance: $<span id="bankBalDisp">0.00</span></p>
+  <p>Total Additions: $<span id="totalAdd">0.00</span></p>
+  <p>Total Deductions: $<span id="totalSub">0.00</span></p>
+  <p><strong>Adjusted Bank Balance:</strong> $<span id="adjustedBalance">0.00</span></p>
+  <p><strong>General Ledger Cash Balance:</strong> $<span id="ledgerCash">0.00</span></p>
+  <p id="statusMessage"></p>
+
+  <div id="controls">
+    <button onclick="saveCurrent()">Save Current</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <button onclick="exportPDF()">Export PDF</button>
+  </div>
+
+<script>
+  const dateInput = document.getElementById("dateInput");
+  const archiveSelect = document.getElementById("archiveSelect");
+  const bankInput = document.getElementById("bankBalance");
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  let activeDate = todayStr; // YYYY-MM-DD
+  let reconData = {};
+
+  // Load all archived reconciliation dates into archiveSelect dropdown
+  function loadArchiveOptions() {
+    archiveSelect.innerHTML = "";
+    const keys = Object.keys(localStorage).filter(k => k.startsWith("cash_recon_"));
+    // keys format: cash_recon_YYYY-MM-DD
+    keys.sort().reverse(); // most recent first
+    keys.forEach(k => {
+      const dateStr = k.replace("cash_recon_", "");
+      const opt = document.createElement("option");
+      opt.value = dateStr;
+      opt.textContent = dateStr;
+      archiveSelect.appendChild(opt);
+    });
+  }
+
+  // Load reconciliation data for a given date (YYYY-MM-DD)
+  function loadReconciliation(date) {
+    if (!date) {
+      alert("Please select or enter a reconciliation date.");
+      return;
+    }
+    activeDate = date;
+    dateInput.value = activeDate;
+    const stored = localStorage.getItem("cash_recon_" + activeDate);
+    reconData = stored ? JSON.parse(stored) : { bankBalance: 0, items: [] };
+    bankInput.value = reconData.bankBalance;
+    renderTable();
+    updateSummary();
+  }
+
+  // Render the table of reconciling items
+  function renderTable() {
+    const tbody = document.querySelector("#reconTable tbody");
+    tbody.innerHTML = "";
+
+    reconData.items.forEach((item, i) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input type="date" value="${item.date}" onchange="updateItem(${i}, 'date', this.value)"></td>
+        <td><input type="text" value="${item.description}" onchange="updateItem(${i}, 'description', this.value)"></td>
+        <td><input type="number" step="0.01" value="${item.amount}" onchange="updateItem(${i}, 'amount', parseFloat(this.value))"></td>
+        <td>
+          <select onchange="updateItem(${i}, 'type', this.value)">
+            <option value="add" ${item.type === "add" ? "selected" : ""}>Add</option>
+            <option value="sub" ${item.type === "sub" ? "selected" : ""}>Subtract</option>
+          </select>
+        </td>
+        <td><button onclick="removeItem(${i})">X</button></td>
+      `;
+      tbody.appendChild(row);
+    });
+
+    updateSummary();
+  }
+
+  // Update an item property and rerender
+  function updateItem(i, field, value) {
+    reconData.items[i][field] = value;
+    renderTable();
+    updateSummary();
+  }
+
+  // Remove an item and rerender
+  function removeItem(i) {
+    reconData.items.splice(i, 1);
+    renderTable();
+    updateSummary();
+  }
+
+  document.getElementById("addItemBtn").addEventListener("click", () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    reconData.items.push({ date: todayStr, description: "", amount: 0, type: "sub" });
+    renderTable();
+    updateSummary();
+  });
+
+  bankInput.addEventListener("input", updateSummary);
+
+  // Update summary and match status
+  function updateSummary() {
+    const bank = parseFloat(bankInput.value) || 0;
+    let add = 0, sub = 0;
+    reconData.items.forEach(item => {
+      const amt = parseFloat(item.amount) || 0;
+      if (item.type === "add") add += amt;
+      else sub += amt;
+    });
+
+    const adjusted = bank + add - sub;
+
+    const ledger = JSON.parse(localStorage.getItem("ledger_balances")) || {};
+    const cash = parseFloat(ledger["Cash"] || 0);
+
+    document.getElementById("bankBalDisp").textContent = bank.toFixed(2);
+    document.getElementById("totalAdd").textContent = add.toFixed(2);
+    document.getElementById("totalSub").textContent = sub.toFixed(2);
+    document.getElementById("adjustedBalance").textContent = adjusted.toFixed(2);
+    document.getElementById("ledgerCash").textContent = cash.toFixed(2);
+
+    const status = document.getElementById("statusMessage");
+    if (Math.abs(adjusted - cash) < 0.01) {
+      status.textContent = "Reconciliation matches!";
+      status.className = "match";
+    } else {
+      status.textContent = `Difference: $${(adjusted - cash).toFixed(2)} — does not match ledger.`;
+      status.className = "mismatch";
+    }
+  }
+
+  // Save current reconciliation into localStorage under date key
+  function saveCurrent() {
+    if (!activeDate) {
+      alert("Please select or enter a reconciliation date before saving.");
+      return;
+    }
+    reconData.bankBalance = parseFloat(bankInput.value) || 0;
+    localStorage.setItem("cash_recon_" + activeDate, JSON.stringify(reconData));
+    loadArchiveOptions();
+    alert("Saved reconciliation for " + activeDate);
+  }
+
+  // Load reconciliation from date input field
+  function loadByDate() {
+    const date = dateInput.value;
+    loadReconciliation(date);
+  }
+
+  // Load reconciliation from archiveSelect dropdown
+  function loadArchived() {
+    const date = archiveSelect.value;
+    loadReconciliation(date);
+  }
+
+  function exportCSV() {
+    if (!reconData.items.length) {
+      alert("No items to export.");
+      return;
+    }
+    const rows = [
+      ["Date", "Description", "Amount", "Type"],
+      ...reconData.items.map(item => [item.date, item.description, item.amount, item.type])
+    ];
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `cash_reconciliation_${activeDate}.csv`;
+    link.click();
+  }
+
+  function exportPDF() {
+    const clone = document.body.cloneNode(true);
+    const controls = clone.querySelector("#controls");
+    if (controls) controls.remove();
+    html2pdf().from(clone).set({ margin: 0.5, filename: `cash_reconciliation_${activeDate}.pdf` }).save();
+  }
+
+  // Initialize page
+  dateInput.value = todayStr;
+  activeDate = todayStr;
+  loadArchiveOptions();
+  loadReconciliation(activeDate);
+
+</script>
+
+</body>
+</html>
