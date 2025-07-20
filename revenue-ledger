@@ -1,1 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Revenue Ledger</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1>Revenue Ledger</h1>
+  <p>This page will display revenue entries for your general ledger.</p>
+  <a href="index.html">← Back to Home</a>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Revenue Ledger</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    table, th, td {
+      border: 1px solid #aaa;
+      border-collapse: collapse;
+      padding: 6px;
+    }
+    table { width: 100%; margin-top: 20px; }
+    th { background-color: #f0f0f0; }
+    .subtotal { font-weight: bold; background: #eef; }
+    h1, h2 { margin-bottom: 10px; }
+  </style>
+</head>
+<body>
 
+  <h1>Revenue Ledger</h1>
+
+  <div id="revenueLedgers"></div>
+
+  <h2>Total Revenue (matches General Ledger): <span id="totalRevenue">0.00</span></h2>
+
+  <script>
+    (() => {
+      const accounts = JSON.parse(localStorage.getItem("ledger_accounts")) || [];
+      const journalEntries = JSON.parse(localStorage.getItem("ledger_journal")) || [];
+      const balances = JSON.parse(localStorage.getItem("ledger_balances")) || {};
+
+      const revenues = accounts.filter(acc => acc.type === "Revenue");
+      const revenueLedgersDiv = document.getElementById("revenueLedgers");
+      const totalRevenueEl = document.getElementById("totalRevenue");
+
+      let totalRevenue = 0;
+
+      revenues.forEach(account => {
+        const entries = [];
+
+        journalEntries.forEach(entry => {
+          if (entry.debit.account === account.name) {
+            entries.push({
+              date: entry.date,
+              description: entry.description,
+              debit: entry.debit.amount,
+              credit: 0
+            });
+          } else if (entry.credit.account === account.name) {
+            entries.push({
+              date: entry.date,
+              description: entry.description,
+              debit: 0,
+              credit: entry.credit.amount
+            });
+          }
+        });
+
+        let runningBalance = 0;
+        const tableHtml = `
+          <h2>${account.name}</h2>
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Running Balance</th></tr>
+            </thead>
+            <tbody>
+              ${entries.map(entry => {
+                runningBalance += entry.debit - entry.credit;
+                return `
+                  <tr>
+                    <td>${entry.date}</td>
+                    <td>${entry.description}</td>
+                    <td>${entry.debit ? entry.debit.toFixed(2) : ""}</td>
+                    <td>${entry.credit ? entry.credit.toFixed(2) : ""}</td>
+                    <td>${runningBalance.toFixed(2)}</td>
+                  </tr>
+                `;
+              }).join("")}
+              <tr class="subtotal">
+                <td colspan="4">Ending Balance for ${account.name}</td>
+                <td>${(balances[account.name] || 0).toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        `;
+
+        revenueLedgersDiv.innerHTML += tableHtml;
+        totalRevenue += balances[account.name] || 0;
+      });
+
+      totalRevenueEl.textContent = totalRevenue < 0
+        ? `(${Math.abs(totalRevenue).toFixed(2)})`
+        : totalRevenue.toFixed(2);
+    })();
+  </script>
+
+</body>
+</html>
