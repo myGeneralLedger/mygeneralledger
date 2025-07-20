@@ -72,6 +72,42 @@
 </head>
 <body>
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>General Ledger with Monthly Archives</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    table, th, td {
+      border: 1px solid #aaa;
+      border-collapse: collapse;
+      padding: 6px;
+    }
+    table { width: 100%; margin-top: 10px; }
+    th { background-color: #f0f0f0; }
+    input, select, button { margin: 5px; padding: 6px; }
+    .section { margin-bottom: 40px; }
+    .subaccount { padding-left: 20px; }
+    .subtotal { font-weight: bold; }
+    .modal-backdrop {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: white; padding: 20px; border-radius: 6px;
+      width: 300px; max-width: 90%;
+      box-shadow: 0 0 10px #00000088;
+    }
+    .modal button { margin-top: 10px; }
+  </style>
+</head>
+<body>
+
   <h1>General Ledger</h1>
 
   <!-- Add Account -->
@@ -709,3 +745,4 @@ function closeMonth() {
 
 </body>
 </html>
+
