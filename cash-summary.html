@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <title>Cash Activity Summary</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 30px; }
     h1 { margin-bottom: 10px; }
@@ -14,14 +13,9 @@
     }
     table { width: 100%; margin-top: 20px; }
     th { background-color: #f4f4f4; }
-    select, button {
+    select, input[type="text"], button {
       padding: 6px 10px;
-      margin: 10px 5px 20px 0;
-    }
-    .export-buttons { margin-top: 10px; }
-    .totals {
-      margin-top: 20px;
-      font-weight: bold;
+      margin: 10px 5px 10px 0;
     }
   </style>
 </head>
@@ -33,43 +27,40 @@
 <label for="monthSelect">Select Month:</label>
 <select id="monthSelect"></select>
 
-<div class="export-buttons" style="display:none;" id="exportButtons">
-  <button onclick="exportCSV()">Export to CSV</button>
-  <button onclick="exportPDF()">Export to PDF</button>
-</div>
+<label for="typeFilter">Type:</label>
+<select id="typeFilter">
+  <option value="all">All</option>
+  <option value="receipt">Cash Receipt</option>
+  <option value="disbursement">Cash Disbursement</option>
+</select>
 
-<div id="cashWrapper">
-  <table id="cashTable" style="display:none;">
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Description</th>
-        <th>Type</th>
-        <th>Counter Account</th>
-        <th>Amount</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<label for="descriptionFilter">Description:</label>
+<input type="text" id="descriptionFilter" placeholder="Search...">
 
-  <div id="totals" class="totals" style="display:none;">
-    <p>Total Receipts: $<span id="totalReceipts">0.00</span></p>
-    <p>Total Disbursements: $<span id="totalDisbursements">0.00</span></p>
-    <p>Net Cash Change: $<span id="netCashChange">0.00</span></p>
-  </div>
-</div>
+<table id="cashTable" style="display:none;">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Description</th>
+      <th>Type</th>
+      <th>Counter Account</th>
+      <th>Amount</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
 <script>
-(function() {
+(function () {
   const journal = JSON.parse(localStorage.getItem("ledger_journal")) || [];
-  let currentRows = [];
 
-  function pad(n) { return n < 10 ? "0" + n : n; }
+  function pad(n) {
+    return n < 10 ? "0" + n : n;
+  }
 
   function getMonthKey(dateStr) {
     const d = new Date(dateStr);
-    if (isNaN(d)) return "";
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+    return isNaN(d) ? "" : `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
   }
 
   function loadMonthOptions() {
@@ -88,23 +79,25 @@
   function renderCashTable(monthKey) {
     const tbody = document.querySelector("#cashTable tbody");
     const table = document.getElementById("cashTable");
-    const exportBtns = document.getElementById("exportButtons");
-    const totalsDiv = document.getElementById("totals");
     tbody.innerHTML = "";
-    currentRows = [];
 
-    let totalReceipts = 0;
-    let totalDisbursements = 0;
+    const typeFilter = document.getElementById("typeFilter").value;
+    const descFilter = document.getElementById("descriptionFilter").value.toLowerCase();
 
     const filtered = journal.filter(entry => {
-      return getMonthKey(entry.date) === monthKey &&
-        (entry.debit.account === "Cash" || entry.credit.account === "Cash");
+      const entryMonth = getMonthKey(entry.date);
+      const involvesCash =
+        entry.debit.account === "Cash" || entry.credit.account === "Cash";
+      const matchesMonth = entryMonth === monthKey;
+      const matchesDesc = entry.description.toLowerCase().includes(descFilter);
+      let matchesType = true;
+      if (typeFilter === "receipt") matchesType = entry.debit.account === "Cash";
+      if (typeFilter === "disbursement") matchesType = entry.credit.account === "Cash";
+      return matchesMonth && involvesCash && matchesDesc && matchesType;
     });
 
     if (!filtered.length) {
       table.style.display = "none";
-      exportBtns.style.display = "none";
-      totalsDiv.style.display = "none";
       return;
     }
 
@@ -112,90 +105,32 @@
       const isReceipt = entry.debit.account === "Cash";
       const type = isReceipt ? "Cash Receipt" : "Cash Disbursement";
       const counter = isReceipt ? entry.credit.account : entry.debit.account;
-      const amount = isReceipt ? entry.debit.amount : entry.credit.amount;
+      const amount = (isReceipt ? entry.debit.amount : -entry.credit.amount).toFixed(2);
 
-      if (isReceipt) {
-        totalReceipts += amount;
-      } else {
-        totalDisbursements += amount;
-      }
-
-      const displayAmount = isReceipt ? amount : -amount;
-
-      const row = {
-        date: entry.date,
-        description: entry.description,
-        type,
-        counter,
-        amount: displayAmount.toFixed(2)
-      };
-      currentRows.push(row);
-
-      tbody.innerHTML += `
-        <tr>
-          <td>${row.date}</td>
-          <td>${row.description}</td>
-          <td>${row.type}</td>
-          <td>${row.counter}</td>
-          <td>${row.amount}</td>
-        </tr>
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${entry.date}</td>
+        <td>${entry.description}</td>
+        <td>${type}</td>
+        <td>${counter}</td>
+        <td style="text-align:right;">${amount}</td>
       `;
+      tbody.appendChild(row);
     });
 
-    document.getElementById("totalReceipts").textContent = totalReceipts.toFixed(2);
-    document.getElementById("totalDisbursements").textContent = totalDisbursements.toFixed(2);
-    document.getElementById("netCashChange").textContent = (totalReceipts - totalDisbursements).toFixed(2);
-
     table.style.display = "";
-    totalsDiv.style.display = "block";
-    exportBtns.style.display = "block";
   }
-
-  window.exportCSV = function() {
-    if (!currentRows.length) return;
-
-    const headers = ["Date", "Description", "Type", "Counter Account", "Amount"];
-    const csvContent = [
-      headers.join(","),
-      ...currentRows.map(r => [
-        `"${r.date}"`,
-        `"${r.description}"`,
-        `"${r.type}"`,
-        `"${r.counter}"`,
-        `"${r.amount}"`
-      ].join(",")),
-      "",
-      `"Total Receipts",,,,"${document.getElementById("totalReceipts").textContent}"`,
-      `"Total Disbursements",,,,"${document.getElementById("totalDisbursements").textContent}"`,
-      `"Net Cash Change",,,,"${document.getElementById("netCashChange").textContent}"`
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Cash_Activity_${document.getElementById("monthSelect").value}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  window.exportPDF = function() {
-    const month = document.getElementById("monthSelect").value;
-    const element = document.getElementById("cashWrapper");
-    const opt = {
-      margin:       0.4,
-      filename:     `Cash_Activity_${month}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
-      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
-  };
 
   document.getElementById("monthSelect").addEventListener("change", e => {
     renderCashTable(e.target.value);
+  });
+
+  document.getElementById("typeFilter").addEventListener("change", () => {
+    renderCashTable(document.getElementById("monthSelect").value);
+  });
+
+  document.getElementById("descriptionFilter").addEventListener("input", () => {
+    renderCashTable(document.getElementById("monthSelect").value);
   });
 
   loadMonthOptions();
