@@ -45,11 +45,13 @@
 <label for="descriptionFilter">Description:</label>
 <input type="text" id="descriptionFilter" placeholder="Search...">
 
+<!-- Balances -->
 <div id="balances" style="margin-top: 10px; display: none;">
   <strong>Beginning Cash Balance:</strong> $<span id="beginningBalance">0.00</span><br>
   <strong>Ending Cash Balance:</strong> $<span id="endingBalance">0.00</span>
 </div>
 
+<!-- Table -->
 <table id="cashTable" style="display:none;">
   <thead>
     <tr>
@@ -63,6 +65,7 @@
   <tbody></tbody>
 </table>
 
+<!-- Totals -->
 <div id="totals">
   <strong>Total Cash Receipts:</strong> $<span id="totalReceipts">0.00</span><br>
   <strong>Total Cash Disbursements:</strong> $<span id="totalDisbursements">0.00</span>
@@ -106,92 +109,75 @@
     let cashActivity = 0;
     let totalReceipts = 0;
     let totalDisbursements = 0;
-    const filteredRows = [];
 
     journal.forEach(entry => {
       const entryDate = new Date(entry.date);
       const entryMonth = getMonthKey(entry.date);
       const isBeforeMonth = entryDate < new Date(`${monthKey}-01`);
       const isInMonth = entryMonth === monthKey;
-      const descMatch = entry.description.toLowerCase().includes(descFilter);
 
-      const debits = entry.debits || [];
-      const credits = entry.credits || [];
-
-      // Compute balances
-      if (isBeforeMonth) {
-        debits.forEach(d => {
-          if (d.account === "Cash") beginningBalance += d.amount;
-        });
-        credits.forEach(c => {
-          if (c.account === "Cash") beginningBalance -= c.amount;
-        });
+      if (entry.debit?.account === "Cash") {
+        if (isBeforeMonth) beginningBalance += entry.debit.amount;
+        if (isInMonth) {
+          cashActivity += entry.debit.amount;
+          totalReceipts += entry.debit.amount;
+        }
       }
 
-      if (isInMonth && descMatch) {
-        // Cash Receipts (Cash in debit)
-        debits.forEach(d => {
-          if (d.account === "Cash" && (typeFilter === "all" || typeFilter === "receipt")) {
-            credits.forEach(c => {
-              filteredRows.push({
-                date: entry.date,
-                description: entry.description,
-                type: "Cash Receipt",
-                counter: c.account,
-                amount: d.amount
-              });
-              totalReceipts += d.amount;
-              cashActivity += d.amount;
-            });
-          }
-        });
-
-        // Cash Disbursements (Cash in credit)
-        credits.forEach(c => {
-          if (c.account === "Cash" && (typeFilter === "all" || typeFilter === "disbursement")) {
-            debits.forEach(d => {
-              filteredRows.push({
-                date: entry.date,
-                description: entry.description,
-                type: "Cash Disbursement",
-                counter: d.account,
-                amount: -c.amount
-              });
-              totalDisbursements += c.amount;
-              cashActivity -= c.amount;
-            });
-          }
-        });
+      if (entry.credit?.account === "Cash") {
+        if (isBeforeMonth) beginningBalance -= entry.credit.amount;
+        if (isInMonth) {
+          cashActivity -= entry.credit.amount;
+          totalDisbursements += entry.credit.amount;
+        }
       }
     });
 
     const endingBalance = beginningBalance + cashActivity;
     document.getElementById("beginningBalance").textContent = beginningBalance.toFixed(2);
     document.getElementById("endingBalance").textContent = endingBalance.toFixed(2);
-    document.getElementById("balances").style.display = "block";
+    document.getElementById("balances").style.display = "";
 
-    if (!filteredRows.length) {
+    const filtered = journal.filter(entry => {
+      const entryMonth = getMonthKey(entry.date);
+      const involvesCash =
+        entry.debit?.account === "Cash" || entry.credit?.account === "Cash";
+      const matchesMonth = entryMonth === monthKey;
+      const matchesDesc = entry.description.toLowerCase().includes(descFilter);
+      let matchesType = true;
+      if (typeFilter === "receipt") matchesType = entry.debit?.account === "Cash";
+      if (typeFilter === "disbursement") matchesType = entry.credit?.account === "Cash";
+      return matchesMonth && involvesCash && matchesDesc && matchesType;
+    });
+
+    if (!filtered.length) {
       table.style.display = "none";
       document.getElementById("totals").style.display = "none";
       return;
+    } else {
+      table.style.display = "";
     }
 
-    filteredRows.forEach(row => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${row.date}</td>
-        <td>${row.description}</td>
-        <td>${row.type}</td>
-        <td>${row.counter}</td>
-        <td style="text-align:right;">${row.amount.toFixed(2)}</td>
+    filtered.forEach(entry => {
+      const isReceipt = entry.debit?.account === "Cash";
+      const type = isReceipt ? "Cash Receipt" : "Cash Disbursement";
+      const counter = isReceipt ? entry.credit.account : entry.debit.account;
+      const amount = (isReceipt ? entry.debit.amount : -entry.credit.amount).toFixed(2);
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${entry.date}</td>
+        <td>${entry.description}</td>
+        <td>${type}</td>
+        <td>${counter}</td>
+        <td style="text-align:right;">${amount}</td>
       `;
-      tbody.appendChild(tr);
+      tbody.appendChild(row);
     });
 
     document.getElementById("totalReceipts").textContent = totalReceipts.toFixed(2);
     document.getElementById("totalDisbursements").textContent = totalDisbursements.toFixed(2);
-    document.getElementById("totals").style.display = "block";
-    table.style.display = "table";
+    document.getElementById("totals").style.display = "";
   }
 
   document.getElementById("monthSelect").addEventListener("change", e => {
@@ -212,8 +198,6 @@
 
 </body>
 </html>
-
-
 
 
 
