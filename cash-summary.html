@@ -37,6 +37,13 @@
 <label for="descriptionFilter">Description:</label>
 <input type="text" id="descriptionFilter" placeholder="Search...">
 
+<!-- Balances -->
+<div id="balances" style="margin-top: 10px; display: none;">
+  <strong>Beginning Cash Balance:</strong> $<span id="beginningBalance">0.00</span><br>
+  <strong>Ending Cash Balance:</strong> $<span id="endingBalance">0.00</span>
+</div>
+
+<!-- Table -->
 <table id="cashTable" style="display:none;">
   <thead>
     <tr>
@@ -84,25 +91,51 @@
     const typeFilter = document.getElementById("typeFilter").value;
     const descFilter = document.getElementById("descriptionFilter").value.toLowerCase();
 
+    let beginningBalance = 0;
+    let cashActivity = 0;
+
+    journal.forEach(entry => {
+      const entryDate = new Date(entry.date);
+      const entryMonth = getMonthKey(entry.date);
+      const isBeforeMonth = entryDate < new Date(`${monthKey}-01`);
+      const isInMonth = entryMonth === monthKey;
+
+      if (entry.debit?.account === "Cash") {
+        if (isBeforeMonth) beginningBalance += entry.debit.amount;
+        if (isInMonth) cashActivity += entry.debit.amount;
+      }
+      if (entry.credit?.account === "Cash") {
+        if (isBeforeMonth) beginningBalance -= entry.credit.amount;
+        if (isInMonth) cashActivity -= entry.credit.amount;
+      }
+    });
+
+    const endingBalance = beginningBalance + cashActivity;
+    document.getElementById("beginningBalance").textContent = beginningBalance.toFixed(2);
+    document.getElementById("endingBalance").textContent = endingBalance.toFixed(2);
+    document.getElementById("balances").style.display = "";
+
     const filtered = journal.filter(entry => {
       const entryMonth = getMonthKey(entry.date);
       const involvesCash =
-        entry.debit.account === "Cash" || entry.credit.account === "Cash";
+        entry.debit?.account === "Cash" || entry.credit?.account === "Cash";
       const matchesMonth = entryMonth === monthKey;
       const matchesDesc = entry.description.toLowerCase().includes(descFilter);
       let matchesType = true;
-      if (typeFilter === "receipt") matchesType = entry.debit.account === "Cash";
-      if (typeFilter === "disbursement") matchesType = entry.credit.account === "Cash";
+      if (typeFilter === "receipt") matchesType = entry.debit?.account === "Cash";
+      if (typeFilter === "disbursement") matchesType = entry.credit?.account === "Cash";
       return matchesMonth && involvesCash && matchesDesc && matchesType;
     });
 
     if (!filtered.length) {
       table.style.display = "none";
       return;
+    } else {
+      table.style.display = "";
     }
 
     filtered.forEach(entry => {
-      const isReceipt = entry.debit.account === "Cash";
+      const isReceipt = entry.debit?.account === "Cash";
       const type = isReceipt ? "Cash Receipt" : "Cash Disbursement";
       const counter = isReceipt ? entry.credit.account : entry.debit.account;
       const amount = (isReceipt ? entry.debit.amount : -entry.credit.amount).toFixed(2);
@@ -117,8 +150,6 @@
       `;
       tbody.appendChild(row);
     });
-
-    table.style.display = "";
   }
 
   document.getElementById("monthSelect").addEventListener("change", e => {
@@ -139,4 +170,7 @@
 
 </body>
 </html>
+
+
+
 
