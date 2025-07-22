@@ -17,6 +17,14 @@
       padding: 6px 10px;
       margin: 10px 5px 10px 0;
     }
+    #totals {
+      margin-top: 10px;
+      display: none;
+    }
+    #totals strong {
+      display: inline-block;
+      width: 200px;
+    }
   </style>
 </head>
 <body>
@@ -57,6 +65,12 @@
   <tbody></tbody>
 </table>
 
+<!-- Totals -->
+<div id="totals">
+  <strong>Total Cash Receipts:</strong> $<span id="totalReceipts">0.00</span><br>
+  <strong>Total Cash Disbursements:</strong> $<span id="totalDisbursements">0.00</span>
+</div>
+
 <script>
 (function () {
   const journal = JSON.parse(localStorage.getItem("ledger_journal")) || [];
@@ -93,6 +107,8 @@
 
     let beginningBalance = 0;
     let cashActivity = 0;
+    let totalReceipts = 0;
+    let totalDisbursements = 0;
 
     journal.forEach(entry => {
       const entryDate = new Date(entry.date);
@@ -102,11 +118,18 @@
 
       if (entry.debit?.account === "Cash") {
         if (isBeforeMonth) beginningBalance += entry.debit.amount;
-        if (isInMonth) cashActivity += entry.debit.amount;
+        if (isInMonth) {
+          cashActivity += entry.debit.amount;
+          totalReceipts += entry.debit.amount;
+        }
       }
+
       if (entry.credit?.account === "Cash") {
         if (isBeforeMonth) beginningBalance -= entry.credit.amount;
-        if (isInMonth) cashActivity -= entry.credit.amount;
+        if (isInMonth) {
+          cashActivity -= entry.credit.amount;
+          totalDisbursements += entry.credit.amount;
+        }
       }
     });
 
@@ -129,6 +152,7 @@
 
     if (!filtered.length) {
       table.style.display = "none";
+      document.getElementById("totals").style.display = "none";
       return;
     } else {
       table.style.display = "";
@@ -150,6 +174,10 @@
       `;
       tbody.appendChild(row);
     });
+
+    document.getElementById("totalReceipts").textContent = totalReceipts.toFixed(2);
+    document.getElementById("totalDisbursements").textContent = totalDisbursements.toFixed(2);
+    document.getElementById("totals").style.display = "";
   }
 
   document.getElementById("monthSelect").addEventListener("change", e => {
@@ -170,6 +198,7 @@
 
 </body>
 </html>
+
 
 
 
